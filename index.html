@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Запись к мастеру</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    button { margin: 5px; padding: 10px 15px; }
+    input, button { margin: 8px 0; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box; }
+    #booking-form button { background: #e91e63; color: white; border: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<div id="booking-widget">
+  <label for="date-picker"><strong>Выберите дату:</strong></label><br>
+  <input type="date" id="date-picker">
+
+  <div id="slots-container" style="margin: 15px 0;"></div>
+
+  <form id="booking-form" style="display: none;">
+    <input type="text" id="client-name" placeholder="Ваше имя" required>
+    <input type="tel" id="client-phone" placeholder="Телефон" required>
+    <button type="submit">Записаться</button>
+  </form>
+
+  <div id="message" style="margin-top: 15px; font-weight: bold;"></div>
+</div>
+
+<script>
+  const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzPcSXUHbD2C8ytcJe6pnJL-nICwSUIXckltabU1dT3OrYy48qqsTCCOa7dYDjdZQTH/exec';
+
+  let selectedDate, selectedTime;
+
+  const datePicker = document.getElementById('date-picker');
+  const slotsContainer = document.getElementById('slots-container');
+  const bookingForm = document.getElementById('booking-form');
+  const messageDiv = document.getElementById('message');
+
+  datePicker.addEventListener('change', async () => {
+    selectedDate = datePicker.value;
+    if (!selectedDate) return;
+
+    messageDiv.textContent = 'Загрузка слотов...';
+    slotsContainer.innerHTML = '';
+
+    try {
+      const resp = await fetch(`${BACKEND_URL}?action=getSlots&date=${selectedDate}`);
+
+      if (!resp.ok) throw new Error('Ошибка сервера');
+
+      const slots = await resp.json();
+
+      if (!slots || slots.length === 0) {
+        slotsContainer.innerHTML = '<p>На эту дату нет свободных слотов.</p>';
+        return;
+      }
+
+      slots.forEach(slot => {
+        if (slot.available) {
+          const btn = document.createElement('button');
+          btn.textContent = slot.time;
+          btn.addEventListener('click', () => {
+            selectedTime = slot.time;
+            bookingForm.style.display = 'block';
+            messageDiv.textContent = `Выбрано время: ${slot.time}`;
+          });
+          slotsContainer.appendChild(btn);
+        }
+      });
+
+    } catch (err) {
+      console.error(err);
+      slotsContainer.innerHTML = `<p style="color:red;">Ошибка загрузки слотов: ${err.message}</p>`;
+    }
+  });
+
+  bookingForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById('client-name').value.trim();
+    const phone = document.getElementById('client-phone').value.trim();
+
+    if (!name || !phone || !selectedTime) {
+      messageDiv.textContent = 'Заполните все поля!';
+      return;
+    }
+
+    messageDiv.textContent = 'Отправка...';
+
+    try {
+      const resp = await fetch(BACKEND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'bookSlot',
+          date: selectedDate,
+          time: selectedTime,
+          name: name,
+          phone: phone
+        })
+      });
+
+      const result = await resp.json();
+
+      if (result.success) {
+        messageDiv.style.color = 'green';
+        messageDiv.textContent = '✅ Вы успешно записаны!';
+        bookingForm.style.display = 'none';
+      } else {
+        messageDiv.style.color = 'red';
+        messageDiv.textContent = 'Ошибка: ' + (result.error || 'Неизвестная ошибка');
+      }
+    } catch (err) {
+      messageDiv.style.color = 'red';
+      messageDiv.textContent = 'Ошибка соединения с сервером';
+    }
+  });
+</script>
+
+</body>
+</html>
