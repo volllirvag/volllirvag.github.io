@@ -8,34 +8,36 @@
     body {
       font-family: Arial, sans-serif;
       padding: 20px;
-      background: #f9f9f9;
+      background: #f0f0f0;
     }
     #booking-widget {
       max-width: 500px;
       margin: 0 auto;
       background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
+    h2 { margin-top: 0; }
     input, button {
       margin: 10px 0;
       padding: 12px;
       width: 100%;
       box-sizing: border-box;
+      font-size: 16px;
     }
     button {
       background: #e91e63;
       color: white;
       border: none;
       cursor: pointer;
-      font-size: 16px;
     }
     button:hover { background: #c2185b; }
     #slots-container button {
-      margin: 5px;
-      padding: 10px 15px;
+      margin: 5px 5px 5px 0;
+      padding: 12px 18px;
     }
+    #message { margin-top: 15px; font-weight: bold; min-height: 20px; }
   </style>
 </head>
 <body>
@@ -53,12 +55,10 @@
     <button type="submit">Записаться</button>
   </form>
 
-  <div id="message" style="margin-top: 15px; font-weight: bold;"></div>
+  <div id="message"></div>
 </div>
 
 <script>
-  const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbzPcSXUHbD2C8ytcJe6pnJL-nICwSUIXckltabU1dT3OrYy48qqsTCCOa7dYDjdZQTH/exec';
-
   let selectedDate, selectedTime;
 
   const datePicker = document.getElementById('date-picker');
@@ -66,54 +66,29 @@
   const bookingForm = document.getElementById('booking-form');
   const messageDiv = document.getElementById('message');
 
-  async function fetchWithProxy(url) {
-    try {
-      const proxy = 'https://api.allorigins.win/raw?url=';
-      const response = await fetch(proxy + encodeURIComponent(url));
-      if (!response.ok) throw new Error('Ошибка ' + response.status);
-      return response;
-    } catch (e) {
-      throw new Error('Ошибка сети');
-    }
-  }
+  // Фиксированные слоты для теста
+  const allSlots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
 
-  datePicker.addEventListener('change', async () => {
+  datePicker.addEventListener('change', () => {
     selectedDate = datePicker.value;
     if (!selectedDate) return;
 
-    messageDiv.textContent = 'Загрузка слотов...';
-    slotsContainer.innerHTML = '';
+    messageDiv.textContent = '';
+    slotsContainer.innerHTML = `<p><strong>Доступные времена на ${selectedDate}:</strong></p>`;
 
-    try {
-      const url = `${BACKEND_URL}?action=getSlots&date=${selectedDate}`;
-      const resp = await fetchWithProxy(url);
-      const slots = await resp.json();
-
-      if (!slots || slots.length === 0) {
-        slotsContainer.innerHTML = '<p>На эту дату нет свободных слотов.</p>';
-        return;
-      }
-
-      slots.forEach(slot => {
-        if (slot.available) {
-          const btn = document.createElement('button');
-          btn.textContent = slot.time;
-          btn.addEventListener('click', () => {
-            selectedTime = slot.time;
-            bookingForm.style.display = 'block';
-            messageDiv.textContent = `Выбрано: ${slot.time}`;
-          });
-          slotsContainer.appendChild(btn);
-        }
+    allSlots.forEach(time => {
+      const btn = document.createElement('button');
+      btn.textContent = time;
+      btn.addEventListener('click', () => {
+        selectedTime = time;
+        bookingForm.style.display = 'block';
+        messageDiv.textContent = `Выбрано время: ${time}`;
       });
-
-    } catch (err) {
-      console.error(err);
-      slotsContainer.innerHTML = `<p style="color:red;">Ошибка загрузки слотов. Попробуйте позже.</p>`;
-    }
+      slotsContainer.appendChild(btn);
+    });
   });
 
-  bookingForm.addEventListener('submit', async (e) => {
+  bookingForm.addEventListener('submit', (e) => {
     e.preventDefault();
 
     const name = document.getElementById('client-name').value.trim();
@@ -124,21 +99,16 @@
       return;
     }
 
-    messageDiv.textContent = 'Отправка...';
+    // Сохраняем в localStorage (для теста)
+    let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    bookings.push({ date: selectedDate, time: selectedTime, name, phone, timestamp: new Date() });
+    localStorage.setItem('bookings', JSON.stringify(bookings));
 
-    try {
-      const url = BACKEND_URL;
-      const resp = await fetchWithProxy(url);
+    messageDiv.style.color = 'green';
+    messageDiv.textContent = `✅ ${name}, вы записаны на ${selectedDate} в ${selectedTime}!`;
+    bookingForm.style.display = 'none';
 
-      // Для POST используем другой подход (allorigins не всегда хорошо работает с POST)
-      // Пока оставим упрощённо
-      messageDiv.textContent = '✅ Запись сохранена (тестовый режим)';
-      bookingForm.style.display = 'none';
-
-    } catch (err) {
-      messageDiv.style.color = 'red';
-      messageDiv.textContent = 'Ошибка соединения';
-    }
+    console.log('Бронирования:', bookings);
   });
 </script>
 
