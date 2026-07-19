@@ -5,19 +5,47 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Запись к мастеру</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    button { margin: 5px; padding: 10px 15px; }
-    input, button { margin: 8px 0; padding: 10px; width: 100%; max-width: 400px; box-sizing: border-box; }
-    #booking-form button { background: #e91e63; color: white; border: none; cursor: pointer; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f9f9f9;
+    }
+    #booking-widget {
+      max-width: 500px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    input, button {
+      margin: 10px 0;
+      padding: 12px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      background: #e91e63;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:hover { background: #c2185b; }
+    #slots-container button {
+      margin: 5px;
+      padding: 10px 15px;
+    }
   </style>
 </head>
 <body>
 
 <div id="booking-widget">
-  <label for="date-picker"><strong>Выберите дату:</strong></label><br>
+  <h2>Запись к мастеру</h2>
+  <label for="date-picker"><strong>Выберите дату:</strong></label><br><br>
   <input type="date" id="date-picker">
 
-  <div id="slots-container" style="margin: 15px 0;"></div>
+  <div id="slots-container" style="margin: 20px 0;"></div>
 
   <form id="booking-form" style="display: none;">
     <input type="text" id="client-name" placeholder="Ваше имя" required>
@@ -38,6 +66,14 @@
   const bookingForm = document.getElementById('booking-form');
   const messageDiv = document.getElementById('message');
 
+  // Прокси для обхода CORS
+  async function fetchWithProxy(url) {
+    const proxy = 'https://corsproxy.io/?';
+    const response = await fetch(proxy + encodeURIComponent(url));
+    if (!response.ok) throw new Error('Ошибка сети');
+    return response;
+  }
+
   datePicker.addEventListener('change', async () => {
     selectedDate = datePicker.value;
     if (!selectedDate) return;
@@ -46,10 +82,8 @@
     slotsContainer.innerHTML = '';
 
     try {
-      const resp = await fetch(`${BACKEND_URL}?action=getSlots&date=${selectedDate}`);
-
-      if (!resp.ok) throw new Error('Ошибка сервера');
-
+      const url = `${BACKEND_URL}?action=getSlots&date=${selectedDate}`;
+      const resp = await fetchWithProxy(url);
       const slots = await resp.json();
 
       if (!slots || slots.length === 0) {
@@ -64,7 +98,7 @@
           btn.addEventListener('click', () => {
             selectedTime = slot.time;
             bookingForm.style.display = 'block';
-            messageDiv.textContent = `Выбрано время: ${slot.time}`;
+            messageDiv.textContent = `Выбрано: ${slot.time}`;
           });
           slotsContainer.appendChild(btn);
         }
@@ -72,7 +106,7 @@
 
     } catch (err) {
       console.error(err);
-      slotsContainer.innerHTML = `<p style="color:red;">Ошибка загрузки слотов: ${err.message}</p>`;
+      slotsContainer.innerHTML = `<p style="color:red;">Ошибка загрузки: ${err.message}</p>`;
     }
   });
 
@@ -90,7 +124,10 @@
     messageDiv.textContent = 'Отправка...';
 
     try {
-      const resp = await fetch(BACKEND_URL, {
+      const url = BACKEND_URL;
+      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+
+      const resp = await fetch(proxyUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,7 +151,7 @@
       }
     } catch (err) {
       messageDiv.style.color = 'red';
-      messageDiv.textContent = 'Ошибка соединения с сервером';
+      messageDiv.textContent = 'Ошибка соединения';
     }
   });
 </script>
