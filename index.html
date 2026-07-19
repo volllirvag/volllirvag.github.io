@@ -90,6 +90,8 @@
 </div>
 
 <script>
+  const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbypcQkHuk5U6TJViR2RgnEzqQgMu9Iqh_SwCkD51TigM4RbHgwVj4vPB2C1Vmk8PTNOGQ/exec';
+
   let selectedDate, selectedTime;
 
   const datePicker = document.getElementById('date-picker');
@@ -98,64 +100,55 @@
   const messageDiv = document.getElementById('message');
   const allBookingsDiv = document.getElementById('all-bookings');
 
-  const allSlots = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
-
-  // Загрузка записей
-  function loadBookings() {
-    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-    allBookingsDiv.innerHTML = '';
-
-    if (bookings.length === 0) {
-      allBookingsDiv.innerHTML = '<p>Пока нет записей.</p>';
-      return;
+  async function apiCall(url, method = 'GET', body = null) {
+    try {
+      const options = { method };
+      if (body) {
+        options.headers = { 'Content-Type': 'application/json' };
+        options.body = JSON.stringify(body);
+      }
+      const resp = await fetch(url, options);
+      return await resp.json();
+    } catch (e) {
+      console.error(e);
+      return { success: false, error: 'Ошибка соединения' };
     }
-
-    bookings.forEach((booking, index) => {
-      const div = document.createElement('div');
-      div.className = 'booking-item';
-      div.innerHTML = `
-                <div>
-                    <strong>${booking.date} ${booking.time}</strong><br>
-                    ${booking.name} — ${booking.phone}
-                </div>
-                <button class="cancel-btn" data-index="${index}">Отменить</button>
-            `;
-      allBookingsDiv.appendChild(div);
-    });
-
-    // Обработчики отмены
-    document.querySelectorAll('.cancel-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const index = parseInt(btn.getAttribute('data-index'));
-        let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-        bookings.splice(index, 1);
-        localStorage.setItem('bookings', JSON.stringify(bookings));
-        loadBookings();
-        messageDiv.textContent = 'Запись отменена';
-      });
-    });
   }
 
-  datePicker.addEventListener('change', () => {
+  datePicker.addEventListener('change', async () => {
     selectedDate = datePicker.value;
     if (!selectedDate) return;
 
-    messageDiv.textContent = '';
-    slotsContainer.innerHTML = `<p><strong>Доступные времена на ${selectedDate}:</strong></p>`;
+    messageDiv.textContent = 'Загрузка слотов...';
+    slotsContainer.innerHTML = '';
 
-    allSlots.forEach(time => {
-      const btn = document.createElement('button');
-      btn.textContent = time;
-      btn.addEventListener('click', () => {
-        selectedTime = time;
-        bookingForm.style.display = 'block';
-        messageDiv.textContent = `Выбрано: ${time}`;
-      });
-      slotsContainer.appendChild(btn);
+    const result = await apiCall(`${BACKEND_URL}?action=getSlots&date=${selectedDate}`);
+
+    if (result.error) {
+      slotsContainer.innerHTML = `<p style="color:red;">${result.error}</p>`;
+      return;
+    }
+
+    if (!result || result.length === 0) {
+      slotsContainer.innerHTML = '<p>На эту дату нет свободных слотов.</p>';
+      return;
+    }
+
+    result.forEach(slot => {
+      if (slot.available) {
+        const btn = document.createElement('button');
+        btn.textContent = slot.time;
+        btn.addEventListener('click', () => {
+          selectedTime = slot.time;
+          bookingForm.style.display = 'block';
+          messageDiv.textContent = `Выбрано: ${slot.time}`;
+        });
+        slotsContainer.appendChild(btn);
+      }
     });
   });
 
-  bookingForm.addEventListener('submit', (e) => {
+  bookingForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const name = document.getElementById('client-name').value.trim();
@@ -166,24 +159,39 @@
       return;
     }
 
-    let bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-    bookings.push({
+    const result = await apiCall(BACKEND_URL, 'POST', {
+      action: 'bookSlot',
       date: selectedDate,
       time: selectedTime,
-      name,
-      phone,
-      timestamp: new Date().toISOString()
+      name: name,
+      phone: phone
     });
-    localStorage.setItem('bookings', JSON.stringify(bookings));
 
-    messageDiv.style.color = 'green';
-    messageDiv.textContent = `✅ ${name}, вы записаны на ${selectedDate} в ${selectedTime}!`;
-    bookingForm.style.display = 'none';
-
-    loadBookings(); // Обновляем список
+    if (result.success) {
+      messageDiv.style.color = 'green';
+      messageDiv.textContent = `✅ ${name}, вы записаны на ${selectedDate} в ${selectedTime}!`;
+      bookingForm.style.display = 'none';
+      loadBookings(); // обновляем список
+    } else {
+      messageDiv.style.color = 'red';
+      messageDiv.textContent = 'Ошибка: ' + (result.error || 'Неизвестная ошибка');
+    }
   });
 
-  // Загружаем записи при старте
+  // Загрузка всех записей (локально для отображения)
+  function loadBookings() {
+    // Можно сделать отдельный запрос, но для простоты оставляем localStorage
+    const bookings = JSON.parse(localStorage.getItem('bookings') || '[]');
+    allBookingsDiv.innerHTML = bookings.length ? '' : '<p>Пока нет записей.</p>';
+
+    bookings.forEach((b, i) => {
+      const div = document.createElement('div');
+      div.className = 'booking-item';
+      div.innerHTML = `${b.date} ${b.time} — ${b.name}`;
+      allBookingsDiv.appendChild(div);
+    });
+  }
+
   loadBookings();
 </script>
 
