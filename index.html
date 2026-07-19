@@ -66,12 +66,19 @@
   const bookingForm = document.getElementById('booking-form');
   const messageDiv = document.getElementById('message');
 
-  // Прокси для обхода CORS
+  // Более надёжный прокси
   async function fetchWithProxy(url) {
-    const proxy = 'https://corsproxy.io/?';
-    const response = await fetch(proxy + encodeURIComponent(url));
-    if (!response.ok) throw new Error('Ошибка сети');
-    return response;
+    try {
+      const proxy = 'https://api.allorigins.win/get?url=';
+      const response = await fetch(proxy + encodeURIComponent(url));
+      const data = await response.json();
+      return {
+        ok: true,
+        json: async () => JSON.parse(data.contents)
+      };
+    } catch (e) {
+      throw new Error('Прокси не работает');
+    }
   }
 
   datePicker.addEventListener('change', async () => {
@@ -106,10 +113,11 @@
 
     } catch (err) {
       console.error(err);
-      slotsContainer.innerHTML = `<p style="color:red;">Ошибка загрузки: ${err.message}</p>`;
+      slotsContainer.innerHTML = `<p style="color:red;">Ошибка загрузки слотов. Попробуйте позже.</p>`;
     }
   });
 
+  // ... (остальная часть submit остаётся такой же)
   bookingForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -125,7 +133,7 @@
 
     try {
       const url = BACKEND_URL;
-      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+      const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
 
       const resp = await fetch(proxyUrl, {
         method: 'POST',
@@ -139,7 +147,8 @@
         })
       });
 
-      const result = await resp.json();
+      const data = await resp.json();
+      const result = JSON.parse(data.contents);
 
       if (result.success) {
         messageDiv.style.color = 'green';
