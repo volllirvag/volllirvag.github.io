@@ -3,191 +3,103 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Запись к мастеру</title>
+  <title>Запись к мастеру маникюра</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-
-    body {
-      font-family: 'Inter', Arial, sans-serif;
-      padding: 20px;
-      background: linear-gradient(135deg, #f5e6f0, #e6f0f5);
-      margin: 0;
-    }
-    #booking-widget {
-      max-width: 600px;
-      margin: 0 auto;
-      background: white;
-      padding: 30px;
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    }
-    h1, h2 { color: #c2185b; }
-    input, button {
-      margin: 10px 0;
-      padding: 14px;
-      width: 100%;
-      box-sizing: border-box;
-      border-radius: 8px;
-      border: 1px solid #ddd;
-      font-size: 16px;
-    }
-    button {
-      background: #e91e63;
-      color: white;
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
-    }
-    button:hover { background: #c2185b; }
-    #slots-container button {
-      margin: 6px 6px 6px 0;
-      padding: 12px 20px;
-      background: #f8bbd0;
-      color: #c2185b;
-    }
-    #slots-container button:hover {
-      background: #e91e63;
-      color: white;
-    }
-    .booking-item {
-      background: #f9f9f9;
-      padding: 12px;
-      margin: 8px 0;
-      border-radius: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .cancel-btn {
-      background: #d32f2f;
-      padding: 6px 12px;
-      font-size: 14px;
-    }
-    #message { margin-top: 15px; font-weight: 500; min-height: 24px; }
+    body { font-family: Arial, sans-serif; max-width: 500px; margin: 20px auto; }
+    label { display: block; margin-top: 10px; }
+    input, select, textarea { width: 100%; padding: 8px; margin-top: 5px; }
+    button { margin-top: 20px; padding: 10px 20px; }
+    .message { margin-top: 15px; padding: 10px; border-radius: 5px; }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
   </style>
 </head>
 <body>
+<h2>Онлайн-запись к мастеру маникюра</h2>
+<form id="bookingForm">
+  <label>Дата *</label>
+  <input type="date" id="date" required>
 
-<div id="booking-widget">
-  <h1>Запись к мастеру</h1>
+  <label>Время *</label>
+  <input type="time" id="time" required>
 
-  <label for="date-picker"><strong>Выберите дату:</strong></label><br><br>
-  <input type="date" id="date-picker">
+  <label>Ваше имя *</label>
+  <input type="text" id="name" required placeholder="Анна">
 
-  <div id="slots-container" style="margin: 20px 0;"></div>
+  <label>Телефон *</label>
+  <input type="tel" id="phone" required placeholder="+7 (900) 123-45-67">
 
-  <form id="booking-form" style="display: none;">
-    <input type="text" id="client-name" placeholder="Ваше имя" required>
-    <input type="tel" id="client-phone" placeholder="Телефон" required>
-    <button type="submit">Записаться</button>
-  </form>
+  <label>Услуга</label>
+  <select id="service">
+    <option value="">Выберите услугу</option>
+    <option>Маникюр</option>
+    <option>Педикюр</option>
+    <option>Маникюр + покрытие</option>
+    <option>Наращивание</option>
+  </select>
 
-  <div id="message"></div>
+  <label>Комментарий</label>
+  <textarea id="comment" rows="3" placeholder="Ваши пожелания..."></textarea>
 
-  <hr style="margin: 30px 0;">
-  <h2>Все записи</h2>
-  <div id="all-bookings"></div>
-</div>
+  <button type="submit">Записаться</button>
+</form>
+
+<div id="message" class="message" style="display: none;"></div>
 
 <script>
-  const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbypcQkHuk5U6TJViR2RgnEzqQgMu9Iqh_SwCkD51TigM4RbHgwVj4vPB2C1Vmk8PTNOGQ/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxx3m9x9XKvCBNdms7V3fkUtJXPn-ekkThnug07SuXlloeP7ji9BXnEEq_j_-SwU0yejQ/exec';  // ← ВСТАВЬТЕ СЮДА СВОЙ URL
 
-  let selectedDate, selectedTime;
-
-  const datePicker = document.getElementById('date-picker');
-  const slotsContainer = document.getElementById('slots-container');
-  const bookingForm = document.getElementById('booking-form');
+  const form = document.getElementById('bookingForm');
   const messageDiv = document.getElementById('message');
 
-  async function apiCall(endpoint, method = 'GET', body = null) {
-    const url = endpoint.includes('?') ? endpoint : `${BACKEND_URL}?${endpoint}`;
-
-    try {
-      const options = {
-        method,
-        mode: 'cors'
-      };
-      if (body) {
-        options.headers = { 'Content-Type': 'application/json' };
-        options.body = JSON.stringify(body);
-      }
-
-      const resp = await fetch(url, options);
-      const text = await resp.text();
-
-      try {
-        return JSON.parse(text);
-      } catch (e) {
-        return { success: false, error: text || 'Ошибка ответа' };
-      }
-    } catch (err) {
-      console.error(err);
-      return { success: false, error: 'Ошибка соединения' };
-    }
-  }
-
-  datePicker.addEventListener('change', async () => {
-    selectedDate = datePicker.value;
-    if (!selectedDate) return;
-
-    messageDiv.textContent = 'Загрузка...';
-    slotsContainer.innerHTML = '';
-
-    const result = await apiCall(`action=getSlots&date=${selectedDate}`);
-
-    if (!result.success && result.error) {
-      slotsContainer.innerHTML = `<p style="color:red;">${result.error}</p>`;
-      return;
-    }
-
-    if (!result || result.length === 0) {
-      slotsContainer.innerHTML = '<p>Нет свободных слотов</p>';
-      return;
-    }
-
-    result.forEach(slot => {
-      if (slot.available) {
-        const btn = document.createElement('button');
-        btn.textContent = slot.time;
-        btn.addEventListener('click', () => {
-          selectedTime = slot.time;
-          bookingForm.style.display = 'block';
-          messageDiv.textContent = `Выбрано: ${slot.time}`;
-        });
-        slotsContainer.appendChild(btn);
-      }
-    });
-  });
-
-  bookingForm.addEventListener('submit', async (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const name = document.getElementById('client-name').value.trim();
-    const phone = document.getElementById('client-phone').value.trim();
+    // Собираем данные
+    const bookingData = {
+      date: document.getElementById('date').value,
+      time: document.getElementById('time').value,
+      name: document.getElementById('name').value.trim(),
+      phone: document.getElementById('phone').value.trim(),
+      service: document.getElementById('service').value,
+      comment: document.getElementById('comment').value.trim()
+    };
 
-    if (!name || !phone || !selectedTime) {
-      messageDiv.textContent = 'Заполните все поля!';
+    // Простейшая локальная проверка (на случай отключенного required)
+    if (!bookingData.date || !bookingData.time || !bookingData.name || !bookingData.phone) {
+      showMessage('Пожалуйста, заполните все обязательные поля.', 'error');
       return;
     }
 
-    const result = await apiCall('', 'POST', {
-      action: 'bookSlot',
-      date: selectedDate,
-      time: selectedTime,
-      name,
-      phone
-    });
+    // Отправляем запрос
+    try {
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bookingData)
+      });
 
-    if (result.success) {
-      messageDiv.style.color = 'green';
-      messageDiv.textContent = `✅ Запись создана!`;
-      bookingForm.style.display = 'none';
-    } else {
-      messageDiv.style.color = 'red';
-      messageDiv.textContent = 'Ошибка: ' + (result.error || 'Неизвестная ошибка');
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        showMessage(result.message || 'Запись успешна!', 'success');
+        form.reset();  // очищаем форму
+      } else {
+        showMessage(result.message || 'Не удалось создать запись.', 'error');
+      }
+    } catch (error) {
+      console.error('Ошибка сети:', error);
+      showMessage('Ошибка соединения. Проверьте интернет и попробуйте снова.', 'error');
     }
   });
-</script>
 
+  function showMessage(text, type) {
+    messageDiv.textContent = text;
+    messageDiv.className = `message ${type}`;
+    messageDiv.style.display = 'block';
+    setTimeout(() => { messageDiv.style.display = 'none'; }, 7000);
+  }
+</script>
 </body>
 </html>
